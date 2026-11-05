@@ -1,0 +1,151 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local localPlayer = Players.LocalPlayer
+local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+local flying = false
+local flySpeed = 50 -- السرعة الافتراضية
+
+local bodyVelocity = nil
+local bodyGyro = nil
+
+-- تحديث الشخصية عند الإعادة (Respawn)
+localPlayer.CharacterAdded:Connect(function(newChar)
+	character = newChar
+	humanoid = character:WaitForChild("Humanoid")
+	rootPart = character:WaitForChild("HumanoidRootPart")
+	flying = false
+end)
+
+-- إنشاء واجهة GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "FlyGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 220, 0, 150)
+mainFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 8)
+uiCorner.Parent = mainFrame
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 0, 30)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "Fly Menu"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 18
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.Parent = mainFrame
+
+-- مربع كتابة السرعة
+local speedBox = Instance.new("TextBox")
+speedBox.Size = UDim2.new(0.8, 0, 0, 30)
+speedBox.Position = UDim2.new(0.1, 0, 0.25, 0)
+speedBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+speedBox.Text = tostring(flySpeed)
+speedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedBox.TextSize = 16
+speedBox.Font = Enum.Font.SourceSansBold
+speedBox.ClearTextOnFocus = false
+speedBox.Parent = mainFrame
+
+local boxCorner = Instance.new("UICorner")
+boxCorner.CornerRadius = UDim.new(0, 6)
+boxCorner.Parent = speedBox
+
+-- زر التشغيل والإيقاف
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0.8, 0, 0, 40)
+toggleButton.Position = UDim2.new(0.1, 0, 0.58, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+toggleButton.Text = "Fly: OFF"
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.TextSize = 16
+toggleButton.Font = Enum.Font.SourceSansBold
+toggleButton.Parent = mainFrame
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 6)
+btnCorner.Parent = toggleButton
+
+-- تحديث السرعة مباشرة عند كتابتها في المربع
+speedBox:GetPropertyChangedSignal("Text"):Connect(function()
+	local newSpeed = tonumber(speedBox.Text)
+	if newSpeed then
+		flySpeed = newSpeed
+	end
+end)
+
+-- وظيفة تشغيل وإيقاف الطيران
+local function toggleFly()
+	flying = not flying
+
+	if flying then
+		toggleButton.Text = "Fly: ON"
+		toggleButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+
+		bodyVelocity = Instance.new("BodyVelocity")
+		bodyVelocity.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+		bodyVelocity.Velocity = Vector3.zero
+		bodyVelocity.Parent = rootPart
+
+		bodyGyro = Instance.new("BodyGyro")
+		bodyGyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+		bodyGyro.CFrame = rootPart.CFrame
+		bodyGyro.Parent = rootPart
+	else
+		toggleButton.Text = "Fly: OFF"
+		toggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+
+		if bodyVelocity then bodyVelocity:Destroy() end
+		if bodyGyro then bodyGyro:Destroy() end
+	end
+end
+
+toggleButton.MouseButton1Click:Connect(toggleFly)
+
+-- التحديث المستمر للحركة أثناء الطيران
+RunService.RenderStepped:Connect(function()
+	if flying and rootPart and bodyVelocity and bodyGyro then
+		local camera = workspace.CurrentCamera
+		local moveVector = Vector3.zero
+
+		if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+			moveVector = moveVector + camera.CFrame.LookVector
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+			moveVector = moveVector - camera.CFrame.LookVector
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+			moveVector = moveVector + camera.CFrame.RightVector
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+			moveVector = moveVector - camera.CFrame.RightVector
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.E) then
+			moveVector = moveVector + Vector3.new(0, 1, 0)
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.Q) then
+			moveVector = moveVector - Vector3.new(0, 1, 0)
+		end
+
+		if moveVector.Magnitude > 0 then
+			moveVector = moveVector.Unit
+		end
+
+		bodyVelocity.Velocity = moveVector * flySpeed
+		bodyGyro.CFrame = camera.CFrame
+	end
+end)
